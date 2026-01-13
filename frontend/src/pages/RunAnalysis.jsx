@@ -1,17 +1,8 @@
-// RunAnalysis.jsx
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Plot from "react-plotly.js";
 import "./RunAnalysis.css";
 
-/**
- * RunAnalysis
- * Purpose: Display an interactive Plotly scatter plot of X vs Y from the mapped columns.
- * Notes:
- * - Reads mapped arrays from localStorage: pcl_columns_x, pcl_columns_y
- * - Uses scattergl for performance on large datasets
- * - Downsamples if extremely large to keep the UI responsive
- */
 export default function RunAnalysis() {
   const { state } = useLocation();
   const navigate = useNavigate();
@@ -22,76 +13,64 @@ export default function RunAnalysis() {
 
   const [x, setX] = useState([]);
   const [y, setY] = useState([]);
-
-  const [status, setStatus] = useState("Loading plot data…");
   const [error, setError] = useState("");
 
-  // Load X/Y from localStorage (fast + consistent with your Review page)
+  // Helpers
+  const toNum = (v) => {
+    if (typeof v === "number") return Number.isFinite(v) ? v : null;
+    const s = String(v ?? "").trim();
+    if (s === "") return null;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  };
+
   useEffect(() => {
     setError("");
-    setStatus("Loading plot data…");
 
+    // Prefer state meta, but always load actual data from localStorage (fast + refresh safe)
     try {
       const cfg = JSON.parse(localStorage.getItem("pcl_config") || "{}");
-      const xLS = JSON.parse(localStorage.getItem("pcl_columns_x") || "[]");
-      const yLS = JSON.parse(localStorage.getItem("pcl_columns_y") || "[]");
-
       setFileName(state?.fileName || cfg.fileName || "");
       setSheetName(state?.sheetName || cfg.sheetName || "");
       setTrackerType(state?.trackerType || cfg.trackerType || "flat");
 
+      const xLS = JSON.parse(localStorage.getItem("pcl_columns_x") || "[]");
+      const yLS = JSON.parse(localStorage.getItem("pcl_columns_y") || "[]");
+
       if (!Array.isArray(xLS) || !Array.isArray(yLS) || !xLS.length || !yLS.length) {
-        setError("No X/Y columns found. Go back to Review and ensure columns are mapped.");
-        setStatus("");
+        setError("No X/Y data found. Go back to Review and ensure columns are loaded.");
         return;
       }
 
       setX(xLS);
       setY(yLS);
-      setStatus("");
     } catch {
-      setError("Failed to load plot data. Go back to Review and try again.");
-      setStatus("");
+      setError("Failed to load X/Y data. Go back to Review and try again.");
     }
   }, [state]);
 
-  // Build numeric scatter arrays (ignore non-numeric rows)
-  const { xs, ys, dropped } = useMemo(() => {
+  // Build numeric arrays (Plotly needs numbers). Keep only valid numeric pairs.
+  const { xNum, yNum, dropped } = useMemo(() => {
     const n = Math.min(x.length, y.length);
-    const outX = [];
-    const outY = [];
+    const xx = [];
+    const yy = [];
     let drop = 0;
 
     for (let i = 0; i < n; i++) {
-      const xi = Number(String(x[i] ?? "").trim());
-      const yi = Number(String(y[i] ?? "").trim());
-      if (Number.isFinite(xi) && Number.isFinite(yi)) {
-        outX.push(xi);
-        outY.push(yi);
-      } else {
+      const xv = toNum(x[i]);
+      const yv = toNum(y[i]);
+      if (xv === null || yv === null) {
         drop++;
+        continue;
       }
+      xx.push(xv);
+      yy.push(yv);
     }
-    return { xs: outX, ys: outY, dropped: drop };
+
+    return { xNum: xx, yNum: yy, dropped: drop };
   }, [x, y]);
 
-  // Downsample if huge (keeps browser smooth)
-  const MAX_POINTS = 200_000;
-  const { plotX, plotY, sampled } = useMemo(() => {
-    const n = xs.length;
-    if (n <= MAX_POINTS) return { plotX: xs, plotY: ys, sampled: false };
-
-    const step = Math.ceil(n / MAX_POINTS);
-    const outX = [];
-    const outY = [];
-    for (let i = 0; i < n; i += step) {
-      outX.push(xs[i]);
-      outY.push(ys[i]);
-    }
-    return { plotX: outX, plotY: outY, sampled: true };
-  }, [xs, ys]);
-
-  const pointCount = plotX.length;
+  const pointCount = xNum.length;
 
   function goBack() {
     navigate("/parameters");
@@ -101,115 +80,102 @@ export default function RunAnalysis() {
     <div className="ra-shell">
       <header className="ra-topbar">
         <div className="ra-left">
-          <button className="ra-back" onClick={goBack}>
+          <Link to="/parameters" className="ra-link">
             ← Back
-          </button>
+          </Link>
 
           <div className="ra-titlewrap">
             <h1 className="ra-title">Run Analysis</h1>
             <div className="ra-subtitle">
-              Interactive scatter plot of <strong>X</strong> vs <strong>Y</strong> from your mapped columns.
+              Scatter plot of selected columns (X vs Y) — like Excel “Edit Series”.
             </div>
           </div>
         </div>
 
-        <div className="ra-actions">
-          <Link to="/review" className="ra-link">
-            ← Review
-          </Link>
-          <Link to="/uploads" className="ra-link">
-            Upload New
-          </Link>
-          <div className="ra-badge">Step 4</div>
+        <div className="ra-meta">
+          <div className="ra-chip">
+            <div className="ra-chip-label">File</div>
+            <div className="ra-chip-value">{fileName || "—"}</div>
+          </div>
+          <div className="ra-chip">
+            <div className="ra-chip-label">Sheet</div>
+            <div className="ra-chip-value">{sheetName || "—"}</div>
+          </div>
+          <div className="ra-chip">
+            <div className="ra-chip-label">Tracker</div>
+            <div className="ra-chip-value">{trackerType.toUpperCase()}</div>
+          </div>
+          <div className="ra-chip">
+            <div className="ra-chip-label">Points</div>
+            <div className="ra-chip-value">{pointCount.toLocaleString()}</div>
+          </div>
         </div>
       </header>
 
-      <div className="ra-meta">
-        <div className="ra-chip">
-          <span className="ra-chip-label">File</span>
-          <span className="ra-chip-val">{fileName || "—"}</span>
-        </div>
-        <div className="ra-chip">
-          <span className="ra-chip-label">Sheet</span>
-          <span className="ra-chip-val">{sheetName || "—"}</span>
-        </div>
-        <div className="ra-chip">
-          <span className="ra-chip-label">Tracker</span>
-          <span className="ra-chip-val">{String(trackerType).toUpperCase()}</span>
-        </div>
-        <div className="ra-chip">
-          <span className="ra-chip-label">Points</span>
-          <span className="ra-chip-val">{pointCount.toLocaleString()}</span>
-        </div>
-        {dropped > 0 && (
-          <div className="ra-chip ra-chip-warn" title="Rows that could not be converted to numbers were skipped.">
-            <span className="ra-chip-label">Skipped</span>
-            <span className="ra-chip-val">{dropped.toLocaleString()}</span>
-          </div>
-        )}
-        {sampled && (
-          <div className="ra-chip ra-chip-warn" title="Plot was downsampled for performance.">
-            <span className="ra-chip-label">Note</span>
-            <span className="ra-chip-val">Downsampled</span>
-          </div>
-        )}
-      </div>
-
-      {status && <div className="ra-status">{status}</div>}
       {error && <div className="ra-error">{error}</div>}
 
-      <main className="ra-plotwrap">
-        {!error && (
-          <div className="ra-card">
-            <div className="ra-cardhead">
-              <div className="ra-cardtitle">X vs Y Scatter</div>
-              <div className="ra-cardhint">
-                Pan/zoom, box select, lasso select, and hover are enabled.
-              </div>
-            </div>
+      {!error && (
+        <div className="ra-plotwrap">
+          <Plot
+            data={[
+              {
+                type: "scattergl", // fast for many points
+                mode: "markers",
+                x: xNum,
+                y: yNum,
+                marker: {
+                  size: 4,
+                  color: "#FFD400", // ✅ YELLOW points
+                  opacity: 0.85,
+                },
+                hovertemplate:
+                  "X: %{x}<br>Y: %{y}<extra></extra>",
+                name: "Pile Coordinates",
+              },
+            ]}
+            layout={{
+              autosize: true,
+              margin: { l: 60, r: 20, t: 30, b: 55 },
+              paper_bgcolor: "#ffffff",
+              plot_bgcolor: "#ffffff",
+              xaxis: {
+                title: "X",
+                zeroline: false,
+                showgrid: true,
+                gridcolor: "#eef2f7",
+              },
+              yaxis: {
+                title: "Y",
+                zeroline: false,
+                showgrid: true,
+                gridcolor: "#eef2f7",
+              },
+              showlegend: false,
+              hovermode: "closest",
+            }}
+            config={{
+              responsive: true,
+              displaylogo: false,
+              scrollZoom: true, // nice like Excel zooming
+              modeBarButtonsToRemove: ["lasso2d"], // keep it clean (optional)
+            }}
+            style={{ width: "100%", height: "100%" }}
+          />
+        </div>
+      )}
 
-            <div className="ra-plot">
-              <Plot
-                data={[
-                  {
-                    type: "scattergl",
-                    mode: "markers",
-                    x: plotX,
-                    y: plotY,
-                    marker: {
-                      size: 5,
-                      opacity: 0.75,
-                    },
-                    hovertemplate: "X=%{x}<br>Y=%{y}<extra></extra>",
-                  },
-                ]}
-                layout={{
-                  autosize: true,
-                  margin: { l: 60, r: 20, t: 30, b: 55 },
-                  xaxis: { title: "X", zeroline: false },
-                  yaxis: { title: "Y", zeroline: false },
-                  paper_bgcolor: "rgba(0,0,0,0)",
-                  plot_bgcolor: "rgba(0,0,0,0)",
-                  dragmode: "pan",
-                  showlegend: false,
-                }}
-                config={{
-                  responsive: true,
-                  displaylogo: false,
-                  scrollZoom: true,
-                  modeBarButtonsToRemove: ["toImage"], // optional
-                }}
-                style={{ width: "100%", height: "100%" }}
-                useResizeHandler
-              />
-            </div>
-          </div>
-        )}
-      </main>
+      {!error && (
+        <footer className="ra-footer">
+          Using X = selected X column, Y = selected Y column. Dropped non-numeric rows:{" "}
+          <strong>{dropped.toLocaleString()}</strong>.
+        </footer>
+      )}
 
-      <footer className="ra-footer">
-        Tip: If the plot is dense, use box select or zoom to inspect smaller regions.
-      </footer>
+      <div className="ra-actions">
+        <button className="ra-btn" onClick={goBack}>
+          ← Back to Parameters
+        </button>
+      </div>
     </div>
   );
 }

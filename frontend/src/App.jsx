@@ -7,6 +7,7 @@ import Uploads from "./pages/Uploads";
 import Review from "./pages/Review";
 import GradingTool from "./pages/GradingTool";
 import Parameters from "./pages/Parameters";
+import RunAnalysis from "./pages/RunAnalysis";
 
 
 export default function App() {
@@ -35,7 +36,7 @@ export default function App() {
         <Route path="/review" element={<Review />} />
         <Route path="/proceed-grading" element={<GradingTool />} />
         <Route path="/parameters" element={<Parameters />} />
-
+        <Route path="/run-analysis" element={<RunAnalysis />} />
       </Routes>
     </BrowserRouter>
   );
