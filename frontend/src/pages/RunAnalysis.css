@@ -1,0 +1,176 @@
+/* RunAnalysis.css */
+.ra-shell {
+  position: fixed;
+  inset: 0;
+  background: #f6f7fb;
+  font-family: Arial, sans-serif;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ra-topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.ra-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.ra-back {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid #d7dbea;
+  background: white;
+  color: #0f172a;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.ra-back:hover {
+  background: #f3f5ff;
+}
+
+.ra-titlewrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ra-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.ra-subtitle {
+  color: #475569;
+  font-weight: 700;
+}
+
+.ra-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ra-link {
+  text-decoration: none;
+  color: #334155;
+  font-weight: 900;
+}
+
+.ra-badge {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.ra-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ra-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid #e8eaf2;
+  background: white;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.04);
+}
+
+.ra-chip-label {
+  color: #64748b;
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.ra-chip-val {
+  color: #0f172a;
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.ra-chip-warn {
+  border-color: #f3d37a;
+  background: #fff8dc;
+}
+
+.ra-status {
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid #b7f0c5;
+  background: #ecfdf3;
+  font-weight: 900;
+  color: #14532d;
+}
+
+.ra-error {
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid #f5c2c7;
+  background: #f8d7da;
+  font-weight: 900;
+  color: #7a1a1a;
+}
+
+.ra-plotwrap {
+  flex: 1;
+  min-height: 0; /* important so the plot can flex inside fixed shell */
+  display: flex;
+}
+
+.ra-card {
+  flex: 1;
+  background: white;
+  border: 1px solid #e8eaf2;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ra-cardhead {
+  padding: 12px 14px;
+  border-bottom: 1px solid #f1f3fb;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ra-cardtitle {
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.ra-cardhint {
+  color: #475569;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.ra-plot {
+  flex: 1;
+  min-height: 0;
+}
+
+.ra-footer {
+  color: #475569;
+  font-weight: 700;
+}
