@@ -12,6 +12,8 @@ export default function Review() {
   const [sheetName, setSheetName] = useState("");
   const [trackerType, setTrackerType] = useState("flat"); // "flat" | "xtr"
 
+  // ✅ NOW: Frame + Pole + X + Y + Z(terrain enter)
+  const [frame, setFrame] = useState([]);
   const [pole, setPole] = useState([]);
   const [x, setX] = useState([]);
   const [y, setY] = useState([]);
@@ -20,11 +22,13 @@ export default function Review() {
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
 
-  // Manual mapping letters (editable)
+  // ✅ Manual mapping letters (editable)
+  // Defaults match your screenshot: Table(A), Pole(C), X(D), Y(E), Z terrain enter(I)
+  const [frameCol, setFrameCol] = useState("A");
   const [poleCol, setPoleCol] = useState("C");
   const [xCol, setXCol] = useState("D");
   const [yCol, setYCol] = useState("E");
-  const [zCol, setZCol] = useState("H");
+  const [zCol, setZCol] = useState("I"); // ✅ Z terrain enter
 
   const [isApplying, setIsApplying] = useState(false);
 
@@ -34,6 +38,12 @@ export default function Review() {
       .trim()
       .toLowerCase()
       .replace(/\s+/g, " ");
+
+  const sanitizeLetters = (s) =>
+    String(s || "")
+      .toUpperCase()
+      .replace(/[^A-Z]/g, "")
+      .slice(0, 3); // allows A..ZZZ (more than enough)
 
   const letterToColIndex = (letters) => {
     const s = String(letters || "").toUpperCase().trim();
@@ -64,16 +74,11 @@ export default function Review() {
     }
   };
 
-  /**
-   * Reads BOM file and extracts pole/x/y/z from "Piling Information"
-   * using provided 0-based indices, using header-name validation to find the start row.
-   * (Keep this for DEFAULT / initial extraction because it works well.)
-   */
-  async function extractColumnsFromBom(bomFile, idx) {
+  // Read rows for Piling Information sheet
+  async function readPilingRows(bomFile) {
     const buffer = await bomFile.arrayBuffer();
     const wb = XLSX.read(buffer, { type: "array" });
 
-    // Find the "Piling Information" sheet (case-insensitive)
     const targetNameNorm = "piling information";
     const matchedSheetName =
       wb.SheetNames.find((name) => norm(name) === targetNameNorm) ||
@@ -94,25 +99,39 @@ export default function Review() {
       throw new Error('"Piling Information" sheet is empty.');
     }
 
-    // Find header row where mapped columns contain expected labels
+    return { matchedSheetName, rows };
+  }
+
+  /**
+   * DEFAULT extractor (fast + reliable):
+   * Uses header-name validation to find the start row.
+   * Now checks: Table, Pole, X, Y, Z terrain enter (loosely).
+   */
+  async function extractColumnsDefault(bomFile, idx) {
+    const { matchedSheetName, rows } = await readPilingRows(bomFile);
+
     let headerRowIndex = -1;
+
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i] || [];
+
+      const tableH = norm(r[idx.frame]);
       const poleH = norm(r[idx.pole]);
       const xH = norm(r[idx.x]);
       const yH = norm(r[idx.y]);
       const zH = norm(r[idx.z]);
 
+      const tableOk = tableH === "table";
       const poleOk = poleH === "pole";
       const xOk = xH === "x";
       const yOk = yH === "y";
       const zOk =
-        zH === "z" ||
         zH === "z terrain enter" ||
-        zH.includes("z terrain") ||
-        zH.includes("z");
+        zH === "z" ||
+        zH.includes("terrain") ||
+        (zH.includes("z") && zH.includes("enter"));
 
-      if (poleOk && xOk && yOk && zOk) {
+      if (tableOk && poleOk && xOk && yOk && zOk) {
         headerRowIndex = i;
         break;
       }
@@ -120,89 +139,30 @@ export default function Review() {
 
     if (headerRowIndex === -1) {
       throw new Error(
-        `Could not find header row using mapping Pole=${poleCol}, X=${xCol}, Y=${yCol}, Z=${zCol}. Check your letters.`
+        `Could not find header row using mapping Frame=${frameCol}, Pole=${poleCol}, X=${xCol}, Y=${yCol}, Z=${zCol}.`
       );
     }
 
     const startIndex = headerRowIndex + 1;
+    persistSafely("pcl_data_start_index", String(startIndex)); // tiny, safe
 
-    const outPole = [];
-    const outX = [];
-    const outY = [];
-    const outZ = [];
-
-    let emptyStreak = 0;
-    const EMPTY_STREAK_LIMIT = 25;
-
-    for (let i = startIndex; i < rows.length; i++) {
-      const r = rows[i] || [];
-
-      const poleVal = r[idx.pole] ?? "";
-      const xVal = r[idx.x] ?? "";
-      const yVal = r[idx.y] ?? "";
-      const zVal = r[idx.z] ?? "";
-
-      const allEmpty =
-        String(poleVal).trim() === "" &&
-        String(xVal).trim() === "" &&
-        String(yVal).trim() === "" &&
-        String(zVal).trim() === "";
-
-      if (allEmpty) {
-        emptyStreak += 1;
-        if (emptyStreak >= EMPTY_STREAK_LIMIT) break;
-        continue;
-      }
-
-      emptyStreak = 0;
-
-      outPole.push(toNumberIfPossible(poleVal));
-      outX.push(xVal);
-      outY.push(yVal);
-      outZ.push(zVal);
-    }
-
-    if (!outPole.length) {
-      throw new Error("Header found, but no data rows detected under that mapping.");
-    }
-
-    // ✅ Save start index for fast manual remap (tiny storage)
-    persistSafely("pcl_data_start_index", String(startIndex));
-
-    return { matchedSheetName, outPole, outX, outY, outZ };
+    return extractColumnsNoHeaderFromRows(rows, idx, startIndex, matchedSheetName);
   }
 
   /**
    * Manual remap extractor:
-   * NO header-name checks. Just reads the chosen columns from the same sheet,
-   * starting from the known startIndex (saved from initial extraction).
+   * NO header-name checks. Just reads chosen columns from the SAME sheet,
+   * starting at known startIndex (saved from default extraction).
    */
   async function extractColumnsNoHeader(bomFile, idx, startIndex) {
-    const buffer = await bomFile.arrayBuffer();
-    const wb = XLSX.read(buffer, { type: "array" });
+    const { matchedSheetName, rows } = await readPilingRows(bomFile);
+    return extractColumnsNoHeaderFromRows(rows, idx, startIndex, matchedSheetName);
+  }
 
-    const targetNameNorm = "piling information";
-    const matchedSheetName =
-      wb.SheetNames.find((name) => norm(name) === targetNameNorm) ||
-      wb.SheetNames.find((name) => norm(name).includes(targetNameNorm));
-
-    if (!matchedSheetName) {
-      throw new Error('Could not find a sheet named "Piling Information".');
-    }
-
-    const ws = wb.Sheets[matchedSheetName];
-    const rows = XLSX.utils.sheet_to_json(ws, {
-      header: 1,
-      raw: true,
-      defval: "",
-    });
-
-    if (!rows || rows.length === 0) {
-      throw new Error('"Piling Information" sheet is empty.');
-    }
-
+  function extractColumnsNoHeaderFromRows(rows, idx, startIndex, matchedSheetName) {
     const start = Number.isFinite(startIndex) ? startIndex : 0;
 
+    const outFrame = [];
     const outPole = [];
     const outX = [];
     const outY = [];
@@ -214,13 +174,15 @@ export default function Review() {
     for (let i = start; i < rows.length; i++) {
       const r = rows[i] || [];
 
-      const poleVal = r[idx.pole] ?? "";
+      const fVal = r[idx.frame] ?? "";
+      const pVal = r[idx.pole] ?? "";
       const xVal = r[idx.x] ?? "";
       const yVal = r[idx.y] ?? "";
       const zVal = r[idx.z] ?? "";
 
       const allEmpty =
-        String(poleVal).trim() === "" &&
+        String(fVal).trim() === "" &&
+        String(pVal).trim() === "" &&
         String(xVal).trim() === "" &&
         String(yVal).trim() === "" &&
         String(zVal).trim() === "";
@@ -233,7 +195,8 @@ export default function Review() {
 
       emptyStreak = 0;
 
-      outPole.push(toNumberIfPossible(poleVal));
+      outFrame.push(toNumberIfPossible(fVal)); // usually numeric
+      outPole.push(toNumberIfPossible(pVal));  // must be numeric
       outX.push(xVal);
       outY.push(yVal);
       outZ.push(zVal);
@@ -243,29 +206,29 @@ export default function Review() {
       throw new Error("No data found in the selected columns.");
     }
 
-    return { matchedSheetName, outPole, outX, outY, outZ };
+    return { matchedSheetName, outFrame, outPole, outX, outY, outZ };
   }
 
-  // ---------- initial load: fast from localStorage, else extract from bomFile (state) ----------
+  // ---------- initial load ----------
   useEffect(() => {
     setError("");
     setStatus("");
 
     // restore mapping letters if saved
     try {
-      const savedLetters = JSON.parse(localStorage.getItem("pcl_mapping_letters") || "null");
-      if (savedLetters?.pole && savedLetters?.x && savedLetters?.y && savedLetters?.z) {
-        setPoleCol(String(savedLetters.pole).toUpperCase());
-        setXCol(String(savedLetters.x).toUpperCase());
-        setYCol(String(savedLetters.y).toUpperCase());
-        setZCol(String(savedLetters.z).toUpperCase());
-      }
+      const saved = JSON.parse(localStorage.getItem("pcl_mapping_letters") || "null");
+      if (saved?.frame) setFrameCol(String(saved.frame).toUpperCase());
+      if (saved?.pole) setPoleCol(String(saved.pole).toUpperCase());
+      if (saved?.x) setXCol(String(saved.x).toUpperCase());
+      if (saved?.y) setYCol(String(saved.y).toUpperCase());
+      if (saved?.z) setZCol(String(saved.z).toUpperCase());
     } catch {
       // ignore
     }
 
     // prefer localStorage columns (instant)
     try {
+      const frameLS = JSON.parse(localStorage.getItem("pcl_columns_frame") || "[]");
       const poleLS = JSON.parse(localStorage.getItem("pcl_columns_pole") || "[]");
       const xLS = JSON.parse(localStorage.getItem("pcl_columns_x") || "[]");
       const yLS = JSON.parse(localStorage.getItem("pcl_columns_y") || "[]");
@@ -277,6 +240,7 @@ export default function Review() {
       setTrackerType(cfg.trackerType || "flat");
 
       if (poleLS.length && xLS.length && yLS.length && zLS.length) {
+        setFrame(frameLS); // may be empty on older runs; that's ok
         setPole(poleLS);
         setX(xLS);
         setY(yLS);
@@ -287,70 +251,84 @@ export default function Review() {
       // ignore; we will try extracting from bomFile next
     }
 
-    // if no localStorage columns yet, extract from bomFile in navigation state (first visit)
+    // if no localStorage columns yet, extract from bomFile in navigation state
     const bomFile = state?.bomFile || null;
-    if (bomFile) {
-      (async () => {
-        try {
-          setStatus("Loading sheet…");
-          const idx = {
-            pole: letterToColIndex(poleCol) ?? 2,
-            x: letterToColIndex(xCol) ?? 3,
-            y: letterToColIndex(yCol) ?? 4,
-            z: letterToColIndex(zCol) ?? 7,
-          };
-
-          const { matchedSheetName, outPole, outX, outY, outZ } =
-            await extractColumnsFromBom(bomFile, idx);
-
-          setFileName(state?.fileName || bomFile.name || "");
-          setSheetName(matchedSheetName);
-          setPole(outPole);
-          setX(outX);
-          setY(outY);
-          setZ(outZ);
-          setStatus("");
-
-          // save columns for refresh-safe (may fail if too big)
-          const ok1 = persistSafely("pcl_columns_pole", JSON.stringify(outPole));
-          const ok2 = persistSafely("pcl_columns_x", JSON.stringify(outX));
-          const ok3 = persistSafely("pcl_columns_y", JSON.stringify(outY));
-          const ok4 = persistSafely("pcl_columns_z", JSON.stringify(outZ));
-          persistSafely(
-            "pcl_config",
-            JSON.stringify({
-              fileName: state?.fileName || bomFile.name,
-              sheetName: matchedSheetName,
-              trackerType: "flat",
-            })
-          );
-          persistSafely(
-            "pcl_mapping_letters",
-            JSON.stringify({ pole: poleCol, x: xCol, y: yCol, z: zCol })
-          );
-
-          if (!(ok1 && ok2 && ok3 && ok4)) {
-            setStatus(
-              "Loaded. Note: browser storage is full, so refresh may require re-upload."
-            );
-          }
-        } catch (e) {
-          setStatus("");
-          setError(e?.message || "Failed to read BOM file.");
-        }
-      })();
-    } else {
+    if (!bomFile) {
       setError("No BOM file found. Go back to Uploads and continue again.");
+      return;
     }
+
+    (async () => {
+      try {
+        setStatus("Loading sheet…");
+
+        const idx = {
+          frame: letterToColIndex(frameCol) ?? 0, // A
+          pole: letterToColIndex(poleCol) ?? 2,  // C
+          x: letterToColIndex(xCol) ?? 3,        // D
+          y: letterToColIndex(yCol) ?? 4,        // E
+          z: letterToColIndex(zCol) ?? 8,        // I
+        };
+
+        const { matchedSheetName, outFrame, outPole, outX, outY, outZ } =
+          await extractColumnsDefault(bomFile, idx);
+
+        setFileName(state?.fileName || bomFile.name || "");
+        setSheetName(matchedSheetName);
+
+        setFrame(outFrame);
+        setPole(outPole);
+        setX(outX);
+        setY(outY);
+        setZ(outZ);
+
+        setStatus("");
+
+        // cache for refresh-safe (best effort)
+        const okF = persistSafely("pcl_columns_frame", JSON.stringify(outFrame));
+        const ok1 = persistSafely("pcl_columns_pole", JSON.stringify(outPole));
+        const ok2 = persistSafely("pcl_columns_x", JSON.stringify(outX));
+        const ok3 = persistSafely("pcl_columns_y", JSON.stringify(outY));
+        const ok4 = persistSafely("pcl_columns_z", JSON.stringify(outZ));
+
+        persistSafely(
+          "pcl_config",
+          JSON.stringify({
+            fileName: state?.fileName || bomFile.name,
+            sheetName: matchedSheetName,
+            trackerType: "flat",
+          })
+        );
+
+        persistSafely(
+          "pcl_mapping_letters",
+          JSON.stringify({
+            frame: frameCol,
+            pole: poleCol,
+            x: xCol,
+            y: yCol,
+            z: zCol,
+          })
+        );
+
+        if (!(ok1 && ok2 && ok3 && ok4 && okF)) {
+          setStatus("Loaded. Note: browser storage is full, so refresh may require re-upload.");
+        }
+      } catch (e) {
+        setStatus("");
+        setError(e?.message || "Failed to read BOM file.");
+      }
+    })();
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
   const rowCount = useMemo(() => {
-    return Math.min(pole.length, x.length, y.length, z.length);
-  }, [pole, x, y, z]);
+    return Math.min(frame.length || Infinity, pole.length, x.length, y.length, z.length);
+  }, [frame, pole, x, y, z]);
 
   const PREVIEW_N = 2000;
-  const previewCount = Math.min(rowCount, PREVIEW_N);
+  const previewCount = Math.min(rowCount || 0, PREVIEW_N);
 
   function proceedToGradingTool() {
     setError("");
@@ -372,19 +350,20 @@ export default function Review() {
     });
   }
 
-  // ✅ Apply mapping WITHOUT header-name checks: show whole columns user chooses
+  // ✅ Apply mapping WITHOUT header-name checks
   async function applyMapping() {
     setError("");
     setStatus("");
     setIsApplying(true);
 
     try {
+      const f = letterToColIndex(frameCol);
       const p = letterToColIndex(poleCol);
       const xc = letterToColIndex(xCol);
       const yc = letterToColIndex(yCol);
       const zc = letterToColIndex(zCol);
 
-      if ([p, xc, yc, zc].some((v) => v === null)) {
+      if ([f, p, xc, yc, zc].some((v) => v === null)) {
         setError("Invalid column letter. Use A-Z (or AA, AB...).");
         return;
       }
@@ -395,15 +374,20 @@ export default function Review() {
         return;
       }
 
-      // Use the same start row detected during initial extraction
       const startIndex = Number(localStorage.getItem("pcl_data_start_index")) || 0;
 
       setStatus("Applying mapping…");
 
-      const { matchedSheetName, outPole, outX, outY, outZ } =
-        await extractColumnsNoHeader(bomFile, { pole: p, x: xc, y: yc, z: zc }, startIndex);
+      const { matchedSheetName, outFrame, outPole, outX, outY, outZ } =
+        await extractColumnsNoHeader(
+          bomFile,
+          { frame: f, pole: p, x: xc, y: yc, z: zc },
+          startIndex
+        );
 
       setSheetName(matchedSheetName);
+
+      setFrame(outFrame);
       setPole(outPole);
       setX(outX);
       setY(outY);
@@ -412,14 +396,22 @@ export default function Review() {
       // save mapping letters only (safe)
       persistSafely(
         "pcl_mapping_letters",
-        JSON.stringify({ pole: poleCol, x: xCol, y: yCol, z: zCol })
+        JSON.stringify({
+          frame: frameCol,
+          pole: poleCol,
+          x: xCol,
+          y: yCol,
+          z: zCol,
+        })
       );
 
       // best-effort cache columns
+      const okF = persistSafely("pcl_columns_frame", JSON.stringify(outFrame));
       const ok1 = persistSafely("pcl_columns_pole", JSON.stringify(outPole));
       const ok2 = persistSafely("pcl_columns_x", JSON.stringify(outX));
       const ok3 = persistSafely("pcl_columns_y", JSON.stringify(outY));
       const ok4 = persistSafely("pcl_columns_z", JSON.stringify(outZ));
+
       persistSafely(
         "pcl_config",
         JSON.stringify({
@@ -429,7 +421,7 @@ export default function Review() {
         })
       );
 
-      if (!(ok1 && ok2 && ok3 && ok4)) {
+      if (!(ok1 && ok2 && ok3 && ok4 && okF)) {
         setStatus("Applied. Note: browser storage is full, so refresh may require re-upload.");
       } else {
         setStatus("Applied.");
@@ -457,7 +449,7 @@ export default function Review() {
 
             <div className="review-count">
               Sheet: <strong>{sheetName || "—"}</strong> · Rows copied:{" "}
-              <strong>{rowCount}</strong>
+              <strong>{rowCount || 0}</strong>
               {rowCount > PREVIEW_N ? ` (showing first ${PREVIEW_N})` : ""}
             </div>
 
@@ -467,9 +459,9 @@ export default function Review() {
             </div>
 
             <div className="review-count">
-              Current Mapping:{" "}
+              Columns:{" "}
               <strong>
-                Pole={poleCol}, X={xCol}, Y={yCol}, Z={zCol}
+                Frame={frameCol}, Pole={poleCol}, X={xCol}, Y={yCol}, Z={zCol}
               </strong>
             </div>
           </div>
@@ -509,13 +501,21 @@ export default function Review() {
 
         <div className="review-maprow">
           <div className="review-mapfield">
+            <label>Frame</label>
+            <input
+              className="review-mapinput"
+              value={frameCol}
+              onChange={(e) => setFrameCol(sanitizeLetters(e.target.value))}
+              placeholder="A"
+            />
+          </div>
+
+          <div className="review-mapfield">
             <label>Pole</label>
             <input
               className="review-mapinput"
               value={poleCol}
-              onChange={(e) =>
-                setPoleCol(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""))
-              }
+              onChange={(e) => setPoleCol(sanitizeLetters(e.target.value))}
               placeholder="C"
             />
           </div>
@@ -525,9 +525,7 @@ export default function Review() {
             <input
               className="review-mapinput"
               value={xCol}
-              onChange={(e) =>
-                setXCol(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""))
-              }
+              onChange={(e) => setXCol(sanitizeLetters(e.target.value))}
               placeholder="D"
             />
           </div>
@@ -537,9 +535,7 @@ export default function Review() {
             <input
               className="review-mapinput"
               value={yCol}
-              onChange={(e) =>
-                setYCol(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""))
-              }
+              onChange={(e) => setYCol(sanitizeLetters(e.target.value))}
               placeholder="E"
             />
           </div>
@@ -549,10 +545,8 @@ export default function Review() {
             <input
               className="review-mapinput"
               value={zCol}
-              onChange={(e) =>
-                setZCol(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""))
-              }
-              placeholder="H"
+              onChange={(e) => setZCol(sanitizeLetters(e.target.value))}
+              placeholder="I"
             />
           </div>
 
@@ -561,8 +555,7 @@ export default function Review() {
           </button>
 
           <div className="inst-list">
-            Default: Pole=C, X=D, Y=E, Z=I. Type letters and click Apply.
-            Manual remap ignores header names and shows the chosen columns.
+            Default: Frame=A, Pole=C, X=D, Y=E, Z=I (Z terrain enter). Manual Apply ignores headers and shows chosen columns.
           </div>
         </div>
       </div>
@@ -577,6 +570,7 @@ export default function Review() {
           <table className="review-table">
             <thead>
               <tr>
+                <th>Frame ({frameCol})</th>
                 <th>Pole ({poleCol})</th>
                 <th>X ({xCol})</th>
                 <th>Y ({yCol})</th>
@@ -586,6 +580,7 @@ export default function Review() {
             <tbody>
               {Array.from({ length: previewCount }).map((_, i) => (
                 <tr key={i}>
+                  <td>{String(frame[i] ?? "")}</td>
                   <td>{String(pole[i] ?? "")}</td>
                   <td>{String(x[i] ?? "")}</td>
                   <td>{String(y[i] ?? "")}</td>

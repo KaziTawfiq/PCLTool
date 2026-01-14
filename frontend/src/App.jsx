@@ -8,6 +8,7 @@ import Review from "./pages/Review";
 import GradingTool from "./pages/GradingTool";
 import Parameters from "./pages/Parameters";
 import RunAnalysis from "./pages/RunAnalysis";
+import FramePage from "./pages/FramePage";
 
 
 export default function App() {
@@ -37,6 +38,8 @@ export default function App() {
         <Route path="/proceed-grading" element={<GradingTool />} />
         <Route path="/parameters" element={<Parameters />} />
         <Route path="/run-analysis" element={<RunAnalysis />} />
+        <Route path="/frame/:frameId" element={<FramePage />} />
+      
       </Routes>
     </BrowserRouter>
   );

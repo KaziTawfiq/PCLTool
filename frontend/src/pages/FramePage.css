@@ -1,4 +1,4 @@
-.ra-shell {
+.fp-shell {
   position: fixed;
   inset: 0;
   background: #f6f7fb;
@@ -9,46 +9,41 @@
   gap: 12px;
 }
 
-.ra-topbar {
+.fp-topbar {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
 }
 
-.ra-left {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.ra-link {
+.fp-link {
   text-decoration: none;
   color: #334155;
   font-weight: 900;
   width: fit-content;
 }
 
-.ra-title {
-  margin: 0;
-  font-size: 26px;
+.fp-title {
+  margin: 10px 0 0;
+  font-size: 28px;
   font-weight: 900;
   color: #0f172a;
 }
 
-.ra-subtitle {
+.fp-subtitle {
   color: #475569;
   font-weight: 700;
+  margin-top: 6px;
 }
 
-.ra-meta {
+.fp-meta {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
 
-.ra-chip {
+.fp-chip {
   background: white;
   border: 1px solid #e8eaf2;
   border-radius: 14px;
@@ -57,13 +52,13 @@
   box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
 }
 
-.ra-chip-label {
+.fp-chip-label {
   color: #64748b;
   font-weight: 800;
   font-size: 12px;
 }
 
-.ra-chip-value {
+.fp-chip-value {
   color: #0f172a;
   font-weight: 900;
   margin-top: 4px;
@@ -71,43 +66,32 @@
   word-break: break-word;
 }
 
-.ra-error {
-  padding: 12px;
-  border-radius: 14px;
-  border: 1px solid #f5c2c7;
-  background: #f8d7da;
-  font-weight: 900;
+.fp-content {
+  flex: 1;
+  display: grid;
+  place-items: start;
 }
 
-.ra-plotwrap {
-  flex: 1;
+.fp-card {
+  width: 100%;
+  max-width: 900px;
   background: white;
   border: 1px solid #e8eaf2;
   border-radius: 16px;
-  overflow: hidden;
+  padding: 16px;
   box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
 }
 
-.ra-footer {
-  color: #475569;
-  font-weight: 700;
-}
-
-.ra-actions {
-  display: flex;
-  justify-content: flex-start;
-}
-
-.ra-btn {
-  padding: 10px 14px;
-  border-radius: 12px;
-  border: 1px solid #d7dbea;
-  background: white;
-  color: #0f172a;
+.fp-card-title {
+  margin: 0 0 10px;
+  font-size: 18px;
   font-weight: 900;
-  cursor: pointer;
+  color: #0f172a;
 }
 
-.ra-btn:hover {
-  background: #f3f5ff;
+.fp-list {
+  margin: 0;
+  padding-left: 18px;
+  color: #334155;
+  font-weight: 700;
 }

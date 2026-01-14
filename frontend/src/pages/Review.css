@@ -97,10 +97,10 @@
 .review-status {
   padding: 12px;
   border-radius: 14px;
-  border: 1px solid #cde6ff;
-  background: #eef6ff;
+  border: 1px solid #cfe2ff;
+  background: #e7f1ff;
   font-weight: 900;
-  color: #0b3b74;
+  color: #0f172a;
 }
 
 .review-window {
@@ -132,6 +132,7 @@
   padding: 12px;
   font-size: 13px;
   letter-spacing: 0.2px;
+  white-space: nowrap;
 }
 
 .review-table td {
@@ -148,28 +149,22 @@
   font-weight: 700;
 }
 
-.inst-title {
-  color: #475569;
-  font-weight: 700;
-}
-
-.inst-list {
-  color: #475569;
-  font-weight: 700;
-  margin-left: 10px;
-}
-
-/* mapping card */
+/* Mapping bar */
 .review-mappingbar {
   background: white;
   border: 1px solid #e8eaf2;
   border-radius: 16px;
-  padding: 14px;
+  padding: 12px 14px;
   box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
 }
 
+.inst-title {
+  color: #475569;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+
 .review-maprow {
-  margin-top: 10px;
   display: flex;
   align-items: flex-end;
   gap: 12px;
@@ -184,25 +179,29 @@
 
 .review-mapfield label {
   color: #475569;
-  font-weight: 900;
+  font-weight: 800;
   font-size: 12px;
 }
 
 .review-mapinput {
-  height: 40px;
-  width: 90px;
-  padding: 0 12px;
+  width: 92px;
+  padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid #d7dbea;
   background: #f8fafc;
-  color: #0f172a;
   font-weight: 900;
+  color: #0f172a;
+  outline: none;
   text-transform: uppercase;
 }
 
 .review-mapinput:focus {
-  outline: none;
-  border-color: #4f7cff;
-  box-shadow: 0 0 0 4px rgba(79, 124, 255, 0.15);
-  background: white;
+  border-color: #94a3b8;
+  background: #ffffff;
+}
+
+.inst-list {
+  color: #475569;
+  font-weight: 700;
+  margin-left: 6px;
 }
