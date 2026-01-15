@@ -57,11 +57,11 @@
 /* NEW: jump box */
 .ra-jump {
   background: #ffffff;
-  border: 1px solid #d0d4e4;
+  border: 1px solid #e8eaf2;
   border-radius: 14px;
   padding: 10px 12px;
   width: fit-content;
-  box-shadow: 0 10px 25px rgba(143, 153, 94, 0.788);
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
 }
 
 .ra-jump-label {
@@ -124,7 +124,7 @@
   border-radius: 14px;
   padding: 10px 12px;
   min-width: 140px;
-  box-shadow: 0 10px 25px rgba(124, 132, 15, 0.06);
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
 }
 
 .ra-chip-label {
@@ -155,7 +155,7 @@
   border: 1px solid #e8eaf2;
   border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 10px 25px rgba(149, 156, 48, 0.06);
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
 }
 
 .ra-footer {
