@@ -1,3 +1,19 @@
+// RunAnalysis.jsx
+// Purpose: Show scatter plot of frame locations and allow user to jump to a specific FramePage by frame number.
+// Name: RunAnalysis.jsx
+// Date created: 2026-01-15
+// Method: Loads Frame/Pole/X/Y arrays from localStorage, renders Plotly scatter, supports click-to-navigate,
+//         and adds a manual frame input + button to navigate to /frame/:frameId with required state.
+// Data dictionary:
+// - Inputs:
+//   - localStorage: pcl_columns_frame, pcl_columns_pole, pcl_columns_x, pcl_columns_y
+//   - route state: fileName, sheetName, trackerType
+// - State:
+//   - frameInput (string): user-entered frame id
+//   - frameIdSet (Set<string>): valid frame ids present in dataset
+// - Output:
+//   - navigation to FramePage route with frameId + metadata
+
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Plot from "react-plotly.js";
@@ -12,12 +28,16 @@ export default function RunAnalysis() {
   const [trackerType, setTrackerType] = useState(state?.trackerType || "flat");
 
   // data (from localStorage)
-  const [frame, setFrame] = useState([]); // ✅ Frame column (Table renamed to Frame)
-  const [pole, setPole] = useState([]);   // ✅ Pole column
+  const [frame, setFrame] = useState([]); // Frame column (Table renamed to Frame)
+  const [pole, setPole] = useState([]); // Pole column
   const [x, setX] = useState([]);
   const [y, setY] = useState([]);
 
   const [error, setError] = useState("");
+
+  // NEW: manual frame jump
+  const [frameInput, setFrameInput] = useState("");
+  const [jumpError, setJumpError] = useState("");
 
   // Helpers
   const toNum = (v) => {
@@ -38,6 +58,7 @@ export default function RunAnalysis() {
 
   useEffect(() => {
     setError("");
+    setJumpError("");
 
     try {
       const cfg = JSON.parse(localStorage.getItem("pcl_config") || "{}");
@@ -51,14 +72,16 @@ export default function RunAnalysis() {
       const yLS = JSON.parse(localStorage.getItem("pcl_columns_y") || "[]");
 
       if (
-        !Array.isArray(frameLS) || !frameLS.length ||
-        !Array.isArray(poleLS) || !poleLS.length ||
-        !Array.isArray(xLS) || !xLS.length ||
-        !Array.isArray(yLS) || !yLS.length
+        !Array.isArray(frameLS) ||
+        !frameLS.length ||
+        !Array.isArray(poleLS) ||
+        !poleLS.length ||
+        !Array.isArray(xLS) ||
+        !xLS.length ||
+        !Array.isArray(yLS) ||
+        !yLS.length
       ) {
-        setError(
-          "Missing Frame/Pole/X/Y data. Go back to Review and ensure Frame + Pole + X + Y columns are loaded."
-        );
+        setError("Missing Frame/Pole/X/Y data. Go back to Review and ensure Frame + Pole + X + Y columns are loaded.");
         return;
       }
 
@@ -66,19 +89,25 @@ export default function RunAnalysis() {
       setPole(poleLS);
       setX(xLS);
       setY(yLS);
+
+      // Optional: prefill with first valid frame
+      const first = toIdPiece(frameLS.find((v) => toIdPiece(v)));
+      if (first) setFrameInput(first);
     } catch {
       setError("Failed to load data. Go back to Review and try again.");
     }
   }, [state]);
 
   // Build fast arrays for Plotly (one trace)
-  const { xNum, yNum, customData, pointCount, dropped } = useMemo(() => {
+  const { xNum, yNum, customData, pointCount, dropped, frameIdSet } = useMemo(() => {
     const n = Math.min(frame.length, pole.length, x.length, y.length);
 
     const xx = [];
     const yy = [];
     const cd = [];
     let drop = 0;
+
+    const ids = new Set();
 
     for (let i = 0; i < n; i++) {
       const xv = toNum(x[i]);
@@ -92,10 +121,10 @@ export default function RunAnalysis() {
       const f = toIdPiece(frame[i]) || "—";
       const p = toIdPiece(pole[i]) || "—";
 
+      if (f !== "—") ids.add(String(f));
+
       xx.push(xv);
       yy.push(yv);
-
-      // Plotly customdata per point (array/obj is fine)
       cd.push({ frame: f, pole: p, label: `${f}.${p}` });
     }
 
@@ -105,6 +134,7 @@ export default function RunAnalysis() {
       customData: cd,
       pointCount: xx.length,
       dropped: drop,
+      frameIdSet: ids,
     };
   }, [frame, pole, x, y]);
 
@@ -112,24 +142,63 @@ export default function RunAnalysis() {
     navigate("/parameters");
   }
 
-  // ✅ Click -> go to frame page
+  function goToFrame(frameIdRaw) {
+    const cleaned = toIdPiece(frameIdRaw);
+    if (!cleaned || cleaned === "—") return;
+
+    navigate(`/frame/${encodeURIComponent(cleaned)}`, {
+      state: {
+        frameId: cleaned,
+        fileName,
+        sheetName,
+        trackerType,
+        // Pass these so FramePage can build rows if needed
+        frame,
+        pole,
+        x,
+        y,
+        // If you later add z in RunAnalysis, include it too.
+      },
+    });
+  }
+
+  // Click -> go to frame page
   function onPlotClick(e) {
     const pt = e?.points?.[0];
     if (!pt) return;
 
-    const cd = pt.customdata; // {frame, pole, label}
+    const cd = pt.customdata;
     const frameId = cd?.frame;
 
     if (!frameId || frameId === "—") return;
+    goToFrame(frameId);
+  }
 
-    navigate(`/frame/${encodeURIComponent(frameId)}`, {
-      state: {
-        frameId,
-        fileName,
-        sheetName,
-        trackerType,
-      },
-    });
+  function onJump() {
+    setJumpError("");
+
+    if (error) {
+      setJumpError("Data is missing. Go back to Review and load columns first.");
+      return;
+    }
+
+    const cleaned = toIdPiece(frameInput);
+    if (!cleaned) {
+      setJumpError("Enter a frame number.");
+      return;
+    }
+
+    // Validate against known frames in the dataset (prevents going to a blank frame)
+    if (frameIdSet && frameIdSet.size > 0 && !frameIdSet.has(String(cleaned))) {
+      setJumpError(`Frame "${cleaned}" not found in uploaded data.`);
+      return;
+    }
+
+    goToFrame(cleaned);
+  }
+
+  function onFrameInputKeyDown(e) {
+    if (e.key === "Enter") onJump();
   }
 
   return (
@@ -143,8 +212,27 @@ export default function RunAnalysis() {
           <div className="ra-titlewrap">
             <h1 className="ra-title">Run Analysis</h1>
             <div className="ra-subtitle">
-              Scatter plot (X vs Y). Hover shows <strong>Frame.Pole</strong>. Click a point to open that frame.
+              Scatter plot (X vs Y). Hover shows <strong>Frame.Pole</strong>. Click a point or jump to a frame.
             </div>
+          </div>
+
+          {/* NEW: Jump to frame input */}
+          <div className="ra-jump">
+            <div className="ra-jump-label">Go to Frame</div>
+            <div className="ra-jump-row">
+              <input
+                className="ra-jump-input"
+                value={frameInput}
+                onChange={(e) => setFrameInput(e.target.value)}
+                onKeyDown={onFrameInputKeyDown}
+                placeholder="e.g. 12"
+                inputMode="numeric"
+              />
+              <button className="ra-jump-btn" onClick={onJump}>
+                Open Frame
+              </button>
+            </div>
+            {jumpError && <div className="ra-jump-error">{jumpError}</div>}
           </div>
         </div>
 
@@ -179,13 +267,12 @@ export default function RunAnalysis() {
                 mode: "markers",
                 x: xNum,
                 y: yNum,
-                customdata: customData, // ✅ per-point frame/pole
+                customdata: customData,
                 marker: {
                   size: 4,
-                  color: "#FFD400", // ✅ yellow
+                  color: "#FFD400",
                   opacity: 0.85,
                 },
-                // ✅ Hover shows Frame.Pole only (fast + clean)
                 hovertemplate: "%{customdata.label}<extra></extra>",
                 name: "Frame Locations",
               },
@@ -217,15 +304,14 @@ export default function RunAnalysis() {
               modeBarButtonsToRemove: ["lasso2d"],
             }}
             style={{ width: "100%", height: "100%" }}
-            onClick={onPlotClick} // ✅ click -> frame page
+            onClick={onPlotClick}
           />
         </div>
       )}
 
       {!error && (
         <footer className="ra-footer">
-          Hover shows Frame.Pole. Dropped non-numeric rows:{" "}
-          <strong>{dropped.toLocaleString()}</strong>.
+          Hover shows Frame.Pole. Dropped non-numeric rows: <strong>{dropped.toLocaleString()}</strong>.
         </footer>
       )}
 

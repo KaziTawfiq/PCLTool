@@ -1,3 +1,10 @@
+/* RunAnalysis.css */
+/* Purpose: Styling for RunAnalysis page including frame jump input */
+/* Name: RunAnalysis.css */
+/* Date created: 2026-01-15 */
+/* Method: Flex layout with header chips + plot card + jump-to-frame control */
+/* Data dictionary: N/A */
+
 .ra-shell {
   position: fixed;
   inset: 0;
@@ -19,7 +26,7 @@
 .ra-left {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .ra-link {
@@ -27,6 +34,12 @@
   color: #334155;
   font-weight: 900;
   width: fit-content;
+}
+
+.ra-titlewrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .ra-title {
@@ -39,6 +52,63 @@
 .ra-subtitle {
   color: #475569;
   font-weight: 700;
+}
+
+/* NEW: jump box */
+.ra-jump {
+  background: #ffffff;
+  border: 1px solid #d0d4e4;
+  border-radius: 14px;
+  padding: 10px 12px;
+  width: fit-content;
+  box-shadow: 0 10px 25px rgba(143, 153, 94, 0.788);
+}
+
+.ra-jump-label {
+  color: #64748b;
+  font-weight: 900;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.ra-jump-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ra-jump-input {
+  width: 140px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #d7dbea;
+  font-weight: 900;
+  outline: none;
+}
+
+.ra-jump-input:focus {
+  border-color: #b9c2ff;
+  box-shadow: 0 0 0 3px rgba(185, 194, 255, 0.35);
+}
+
+.ra-jump-btn {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid #d7dbea;
+  background: #0f172a;
+  color: #ffffff;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.ra-jump-btn:hover {
+  opacity: 0.9;
+}
+
+.ra-jump-error {
+  margin-top: 8px;
+  color: crimson;
+  font-weight: 900;
 }
 
 .ra-meta {
@@ -54,7 +124,7 @@
   border-radius: 14px;
   padding: 10px 12px;
   min-width: 140px;
-  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 10px 25px rgba(124, 132, 15, 0.06);
 }
 
 .ra-chip-label {
@@ -85,7 +155,7 @@
   border: 1px solid #e8eaf2;
   border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 10px 25px rgba(149, 156, 48, 0.06);
 }
 
 .ra-footer {
